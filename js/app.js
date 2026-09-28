@@ -69,6 +69,10 @@
 
   const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const src = (i) => "img/" + encodeURIComponent(i.file);
+  // Miniatura leve gerada por js/gerar-miniaturas.js (se faltar, o onerror volta para a original)
+  const thumb = (i) => "thumbs/" + encodeURIComponent(i.file.replace(/\.[^.]+$/, ".webp"));
+  const imgThumb = (i) =>
+    `<img loading="lazy" decoding="async" src="${thumb(i)}" data-orig="${src(i)}" onerror="if(this.dataset.orig){this.src=this.dataset.orig;this.dataset.orig=''}" alt="">`;
 
   function filtrar() {
     const termos = busca.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -84,18 +88,73 @@
       : `${filtrados.length.toLocaleString("pt-BR")} resultado(s)`;
     if (!filtrados.length) container.innerHTML = `<div class="empty">Nenhuma imagem encontrada.</div>`;
     maisItens();
+    salvarUrl();
+  }
+
+  // Troca o filtro e rola animado de volta ao começo dos resultados (logo abaixo do banner)
+  let animTopo = 0;
+  function filtrarEIrParaTopo() {
+    const main = document.querySelector("main");
+    const inicio = scrollY;
+    // Segura a altura da página: a lista nova pode ser menor e o navegador "pularia" a rolagem
+    main.style.minHeight = main.offsetHeight + "px";
+    filtrar();
+    const alvo = main.getBoundingClientRect().top + scrollY
+      - document.querySelector("header").offsetHeight - $("info").offsetHeight - 10;
+    if (inicio <= alvo) { main.style.minHeight = ""; return; }
+
+    const dist = inicio - alvo;
+    const duracao = Math.min(900, 350 + dist / 12); // mais longe, um pouco mais demorado
+    const t0 = performance.now();
+    const suave = (x) => (x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+    const id = ++animTopo;
+    const passo = (agora) => {
+      if (id !== animTopo) return; // outra troca começou uma nova animação
+      const k = Math.min(1, (agora - t0) / duracao);
+      scrollTo({ top: inicio - dist * suave(k), behavior: "instant" });
+      if (k < 1) requestAnimationFrame(passo);
+      else main.style.minHeight = "";
+    };
+    requestAnimationFrame(passo);
+    // Garantia: se a animação não terminar a tempo (aba em segundo plano etc.), finaliza direto
+    setTimeout(() => {
+      if (id !== animTopo || !main.style.minHeight) return;
+      animTopo++;
+      scrollTo({ top: alvo, behavior: "instant" });
+      main.style.minHeight = "";
+    }, duracao + 400);
+  }
+  // Se o usuário rolar durante a animação, ela para e a página fica onde ele deixou
+  const pararAnimTopo = () => { if (document.querySelector("main").style.minHeight) { animTopo++; document.querySelector("main").style.minHeight = ""; } };
+  addEventListener("wheel", pararAnimTopo, { passive: true });
+  addEventListener("touchstart", pararAnimTopo, { passive: true });
+
+  // ---------- Estado na URL (#...) para o F5 voltar ao mesmo lugar ----------
+  // Ex.: index.html#img=CS_DUTCH-0-META_OUTFIT_COLD_WEATHER.jpg&parte=cabeca&cat=Cutscene
+  function salvarUrl() {
+    const p = new URLSearchParams();
+    if (busca.value.trim()) p.set("q", busca.value.trim());
+    if (selCat.value) p.set("cat", selCat.value);
+    if (selOrdem.value !== "nome") p.set("ordem", selOrdem.value);
+    if (atual >= 0 && filtrados[atual]) {
+      p.set("img", filtrados[atual].file);
+      if (verFull) p.set("full", "1");
+      else if (parteSel) p.set("parte", parteSel);
+    }
+    const hash = p.toString();
+    history.replaceState(null, "", hash ? "#" + hash : location.pathname + location.search);
   }
 
   function htmlItem(i, idx) {
     const nome = i.nome ? esc(i.nome) : "—";
     if (modo === "grade") {
       return `<div class="card" data-idx="${idx}" title="${esc(i.file)}">
-        <div class="ph"><img loading="lazy" decoding="async" src="${src(i)}" alt=""></div>
+        <div class="ph">${imgThumb(i)}</div>
         <div class="meta"><div class="model">${esc(i.model)}</div>
         <div class="sub">Outfit ${esc(i.outfit)}${i.nome ? " · " + nome : ""}</div></div></div>`;
     }
     return `<div class="row" data-idx="${idx}">
-      <div class="ph"><img loading="lazy" decoding="async" src="${src(i)}" alt=""></div>
+      <div class="ph">${imgThumb(i)}</div>
       <div>
         <div class="model">${esc(i.model)} <span class="tag">${esc(i.cat)}</span></div>
         <div class="cols sub">
@@ -145,8 +204,8 @@
 
   let t;
   busca.oninput = () => { clearTimeout(t); t = setTimeout(filtrar, 180); };
-  selCat.onchange = filtrar;
-  selOrdem.onchange = filtrar;
+  selCat.onchange = filtrarEIrParaTopo;
+  selOrdem.onchange = filtrarEIrParaTopo;
 
   // ---------- Copiar ----------
   const toast = $("toast");
@@ -176,12 +235,12 @@
 
   // Classifica o item pelo nome do drawable (ex.: HEAD_FR1_4004 -> cabeça)
   const REGRAS = [
-    ["cabelo", ["HAIR", "BEARD", "EYEBROW", "MUSTACHE", "MOUSTACHE", "SIDEBURN"]],
-    ["cabeca", ["EARRING", "HEAD", "EYE", "TEETH", "HAT", "MASK", "FACE", "HELMET", "BONNET", "MOUTH", "TONGUE", "GLASSES"]],
+    ["cabelo", ["HAIR", "MUSTACHE", "MOUSTACHE", "SIDEBURN"]],
+    ["cabeca", ["EARRING", "EYEBROW", "BEARD", "HEAD", "EYE", "TEETH", "HAT", "SHAWL", "MASK", "FACE", "HELMET", "BONNET", "MOUTH", "TONGUE", "GLASSES"]],
     ["mao",    ["GLOV", "RING", "HAND", "BRACELET", "GAUNTLET", "WRIST"]],
     ["pe",     ["BOOT", "SPUR", "SHOE", "FEET", "FOOT", "SPAT"]],
     ["perna",  ["PANT", "LOWR", "LOWER", "SKIRT", "CHAP", "LEG", "BELT", "HOLSTER", "TROUSER", "OVERALL", "KNEE"]],
-    ["torso",  ["COAT", "VEST", "SHIRT", "UPPR", "UPPER", "TORSO", "TIE", "NECK", "SCARF", "SHAWL", "BADGE", "SUSPENDER",
+    ["torso",  ["COAT", "VEST", "SHIRT", "UPPR", "UPPER", "TORSO", "TIE", "NECK", "SCARF", "BADGE", "SUSPENDER",
                 "PONCHO", "APRON", "DRESS", "CLOAK", "TUX", "UNIONSUIT", "JACKET", "CORSET", "GOWN", "BLOUSE", "SWEATER",
                 "COMBO", "OUTFIT", "NUDE", "BODY", "CHEST", "ARM", "SLEEVE", "SASH", "BANDOLIER", "ACCS", "CHEMISE", "MANTLE"]],
   ];
@@ -248,7 +307,13 @@
     atual = idx;
     if (full) { verFull = true; parteSel = null; }
     const i = filtrados[idx];
-    $("lb-img").src = src(i);
+    // Mostra a miniatura na hora e troca pela original quando ela terminar de carregar
+    const lbImg = $("lb-img");
+    lbImg.src = thumb(i);
+    lbImg.onerror = () => { lbImg.onerror = null; lbImg.src = src(i); };
+    const original = new Image();
+    original.onload = () => { if (atual === idx) { lbImg.onerror = null; lbImg.src = original.src; } };
+    original.src = src(i);
     $("lb-open").href = src(i);
     $("lb-model").textContent = i.model;
     $("lb-sub").textContent = `Outfit ${i.outfit}${i.nome ? " · " + i.nome : ""} · ${i.cat} · ${idx + 1}/${filtrados.length}`;
@@ -256,13 +321,14 @@
     document.body.style.overflow = "hidden";
     itensAtuais = null;
     renderPainel(true);
+    salvarUrl();
     carregarXml(i.model).then((dados) => {
       if (atual !== idx) return; // usuário já navegou para outra imagem
       itensAtuais = dados ? dados.outfits[+i.outfit] || [] : null;
       renderPainel();
     });
   }
-  const fechar = () => { lb.classList.remove("open"); document.body.style.overflow = ""; atual = -1; };
+  const fechar = () => { lb.classList.remove("open"); document.body.style.overflow = ""; atual = -1; salvarUrl(); };
   const navegar = (d) => { if (atual < 0) return; abrir((atual + d + filtrados.length) % filtrados.length); };
 
   function renderPainel(carregando = false) {
@@ -318,7 +384,7 @@
 
     if (verFull) {
       titulo.innerHTML = `Outfit Full <span class="qtd">· Outfit ${esc(i.outfit)} · ${itensAtuais.length} itens</span>`;
-      pBody.innerHTML = blocoXml(itensAtuais);
+      pBody.innerHTML = blocosXml(itensAtuais);
       btnCopiar.style.display = "";
       btnCopiar.textContent = "Copiar tudo";
       return;
@@ -326,7 +392,7 @@
     if (parteSel) {
       const itens = porParte[parteSel] || [];
       titulo.innerHTML = `${NOME_PARTE[parteSel]} <span class="qtd">· Outfit ${esc(i.outfit)} · ${itens.length} ${itens.length === 1 ? "item" : "itens"}</span>`;
-      pBody.innerHTML = itens.length ? blocoXml(itens)
+      pBody.innerHTML = itens.length ? blocosXml(itens)
         : `<div class="dica">Nenhum item de ${NOME_PARTE[parteSel].toLowerCase()} neste outfit.</div>`;
       if (itens.length) { btnCopiar.style.display = ""; btnCopiar.textContent = "Copiar tudo"; }
       return;
@@ -336,25 +402,47 @@
       Ou use <b style="font-size:inherit">Ver Outfit Full</b> para ver todos os itens.</div>`;
   }
 
-  // Todos os itens juntos num bloco só, para copiar de uma vez
   const juntarXml = (itens) => itens.map((it) => it.xml).join("\n");
-  const blocoXml = (itens) => {
-    const xml = juntarXml(itens);
-    return `<pre class="xml"><button class="btn destaque copiar-item">Copiar tudo</button>${realcarXml(xml)}</pre>`;
+
+  // head_, eyes_, teeth_, eyebrows_ e eye_cap_ (base do rosto) ficam num bloco separado do resto.
+  // Só o início do nome conta: "p_eyes_mr1_000" vai para o resto.
+  // Nos peds de cutscene/player o nome vem depois do nome do ped: "cs_dutch_ms1_head_000", "player_zero_eyebrows_003".
+  const ehBaseRosto = (it) => {
+    const drawable = ((it.xml.match(/<drawable>([^<]*)/) || [])[1] || "").toLowerCase();
+    return /^(head|eyes|teeth|eyebrows?|eye_?caps?)_/.test(drawable) || /^(cs|mp_cs|player)_.*_(head|eyes|teeth|eyebrows?|eye_?caps?)(_|$)/.test(drawable);
+  };
+  let blocosAtuais = []; // texto de cada bloco, para o botão "Copiar" de cada um
+  const blocosXml = (itens) => {
+    const base = itens.filter(ehBaseRosto);
+    const resto = itens.filter((it) => !ehBaseRosto(it));
+    const grupos = [];
+    if (base.length) grupos.push(["Head / Eyes / Teeth / Eyebrows / Eye cap", base]);
+    if (resto.length) grupos.push(["Demais itens", resto]);
+    blocosAtuais = grupos.map(([, its]) => juntarXml(its));
+    return grupos.map(([nome, its], k) =>
+      (grupos.length > 1 ? `<div class="grupo-titulo">${nome} <span class="qtd">· ${its.length}</span></div>` : "") +
+      `<pre class="xml"><button class="btn destaque copiar-item" data-bloco="${k}">Copiar</button>${realcarXml(blocosAtuais[k])}</pre>`
+    ).join("");
   };
 
   function selecionarParte(id) {
     verFull = false;
     parteSel = parteSel === id ? null : id; // clicar de novo desmarca
     renderPainel();
+    salvarUrl();
   }
 
   lb.addEventListener("click", (e) => {
     const p = e.target.closest("[data-parte]");
     if (p) return selecionarParte(p.dataset.parte);
-    if (e.target.closest(".copiar-item")) return $("p-copiar").click();
+    const c = e.target.closest(".copiar-item");
+    if (c) {
+      const k = +c.dataset.bloco;
+      const n = (blocosAtuais[k].match(/<Item>/g) || []).length;
+      return copiar(blocosAtuais[k], `${n} ${n === 1 ? "item" : "itens"}`);
+    }
   });
-  $("lb-full").onclick = () => { verFull = !verFull; if (verFull) parteSel = null; renderPainel(); };
+  $("lb-full").onclick = () => { verFull = !verFull; if (verFull) parteSel = null; renderPainel(); salvarUrl(); };
   $("p-copiar").onclick = () => {
     if (!itensAtuais) return;
     if (verFull) copiar(juntarXml(itensAtuais), `Outfit Full (${itensAtuais.length} itens)`);
@@ -389,5 +477,26 @@
     if (e.key === "ArrowRight") navegar(1);
   });
 
+  // Restaura filtros e a imagem aberta a partir da URL (F5 / recarregar)
+  const inicial = new URLSearchParams(location.hash.slice(1));
+  busca.value = inicial.get("q") || "";
+  if ([...selCat.options].some((o) => o.value === inicial.get("cat"))) selCat.value = inicial.get("cat");
+  if (inicial.get("ordem") === "nome-desc") selOrdem.value = "nome-desc";
+
   aplicarModo();
+
+  const imgInicial = inicial.get("img");
+  if (imgInicial) {
+    let idx = filtrados.findIndex((i) => i.file === imgInicial);
+    if (idx < 0) { // a imagem não está nos filtros salvos: limpa os filtros e procura de novo
+      busca.value = ""; selCat.value = "";
+      filtrar();
+      idx = filtrados.findIndex((i) => i.file === imgInicial);
+    }
+    if (idx >= 0) {
+      verFull = inicial.get("full") === "1";
+      parteSel = !verFull && NOME_PARTE[inicial.get("parte")] ? inicial.get("parte") : null;
+      abrir(idx);
+    } else salvarUrl();
+  }
 })();
