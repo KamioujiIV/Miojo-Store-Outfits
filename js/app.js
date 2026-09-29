@@ -384,7 +384,7 @@
 
     if (verFull) {
       titulo.innerHTML = `Outfit Full <span class="qtd">· Outfit ${esc(i.outfit)} · ${itensAtuais.length} itens</span>`;
-      pBody.innerHTML = blocosXml(itensAtuais);
+      pBody.innerHTML = blocosXml(itensAtuais, true);
       btnCopiar.style.display = "";
       btnCopiar.textContent = "Copiar tudo";
       return;
@@ -404,19 +404,25 @@
 
   const juntarXml = (itens) => itens.map((it) => it.xml).join("\n");
 
-  // head_, eyes_, teeth_, eyebrows_ e eye_cap_ (base do rosto) ficam num bloco separado do resto.
+  // head_, eyes_, teeth_, eyebrows_, eye_cap_ e eyelashes_ (base do rosto) ficam num bloco separado do resto.
   // Só o início do nome conta: "p_eyes_mr1_000" vai para o resto.
   // Nos peds de cutscene/player o nome vem depois do nome do ped: "cs_dutch_ms1_head_000", "player_zero_eyebrows_003".
+  const BASE_ROSTO = "head|eyes|teeth|eyebrows?|eye_?caps?|eyelash(es)?";
+  const reBaseRosto = new RegExp(`^(${BASE_ROSTO})_`);
+  const reBaseRostoPed = new RegExp(`^(cs|mp_cs|player)_.*_(${BASE_ROSTO})(_|$)`);
   const ehBaseRosto = (it) => {
     const drawable = ((it.xml.match(/<drawable>([^<]*)/) || [])[1] || "").toLowerCase();
-    return /^(head|eyes|teeth|eyebrows?|eye_?caps?)_/.test(drawable) || /^(cs|mp_cs|player)_.*_(head|eyes|teeth|eyebrows?|eye_?caps?)(_|$)/.test(drawable);
+    return reBaseRosto.test(drawable) || reBaseRostoPed.test(drawable);
   };
   let blocosAtuais = []; // texto de cada bloco, para o botão "Copiar" de cada um
-  const blocosXml = (itens) => {
+  // separarCabelo: no Outfit Full o cabelo ganha um bloco próprio
+  const blocosXml = (itens, separarCabelo = false) => {
     const base = itens.filter(ehBaseRosto);
-    const resto = itens.filter((it) => !ehBaseRosto(it));
+    const cabelo = separarCabelo ? itens.filter((it) => !ehBaseRosto(it) && it.parte === "cabelo") : [];
+    const resto = itens.filter((it) => !ehBaseRosto(it) && !cabelo.includes(it));
     const grupos = [];
-    if (base.length) grupos.push(["Head / Eyes / Teeth / Eyebrows / Eye cap", base]);
+    if (base.length) grupos.push(["Head / Eyes / Teeth / Eyebrows / Eye cap / Eyelashes", base]);
+    if (cabelo.length) grupos.push(["Cabelo", cabelo]);
     if (resto.length) grupos.push(["Demais itens", resto]);
     blocosAtuais = grupos.map(([, its]) => juntarXml(its));
     return grupos.map(([nome, its], k) =>
