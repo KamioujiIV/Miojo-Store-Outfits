@@ -9,6 +9,17 @@
 </head>
 <body>
 
+<nav class="abas" id="abas">
+  <div class="abas-in">
+    <span class="abas-marca"><img src="logo/logo%20ico.png" alt="">Miojo Store</span>
+    <div class="abas-lista" role="tablist">
+      <button data-aba="peds" class="ativa">Outfits Peds</button>
+      <button data-aba="shop">Outfits Shop</button>
+      <button data-aba="drawables">Drawables</button>
+    </div>
+  </div>
+</nav>
+
 <section class="hero">
   <h2>Miojo Store</h2>
   <div class="medalhao"><img src="logo/logo.png" alt="Logo Miojo Store"></div>
@@ -19,7 +30,7 @@
 <header>
   <div class="bar">
     <div class="brand">
-      <h1>Miojo Store <small>Outfits Store</small></h1>
+      <h1>Miojo Store <small id="aba-nome">Outfits Peds</small></h1>
     </div>
     <input type="search" id="busca" placeholder="Buscar modelo ou outfit…" autocomplete="off">
     <select id="categoria"></select>

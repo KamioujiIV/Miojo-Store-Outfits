@@ -10,6 +10,7 @@
   --maroon: #480b10;
   --radius: 10px;
   --thumb: 200px;
+  --abas-h: 48px;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -19,9 +20,34 @@ body {
   font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
+/* ---------- Faixa de abas (topo) ---------- */
+.abas {
+  position: sticky; top: 0; z-index: 11; height: var(--abas-h);
+  background: #0e0607; border-bottom: 1px solid var(--border);
+}
+.abas-in {
+  max-width: 1600px; height: 100%; margin: 0 auto; padding: 0 16px;
+  display: flex; align-items: center; gap: 18px;
+}
+.abas-marca {
+  display: flex; align-items: center; gap: 8px; font-weight: 800; letter-spacing: .3px; white-space: nowrap;
+}
+.abas-marca img { width: 28px; height: 28px; object-fit: contain; }
+.abas-lista { display: flex; height: 100%; overflow-x: auto; scrollbar-width: none; }
+.abas-lista button {
+  position: relative; height: 100%; padding: 0 16px; border: 0; background: none; cursor: pointer;
+  color: var(--muted); font: 600 14px system-ui, sans-serif; white-space: nowrap; transition: color .15s;
+}
+.abas-lista button:hover { color: var(--text); }
+.abas-lista button.ativa { color: var(--accent-2); }
+.abas-lista button.ativa::after {
+  content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 3px;
+  border-radius: 3px 3px 0 0; background: var(--accent);
+}
+
 /* ---------- Cabeçalho ---------- */
 header {
-  position: sticky; top: 0; z-index: 10;
+  position: sticky; top: var(--abas-h); z-index: 10;
   background: rgba(22, 10, 11, .94);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
@@ -248,6 +274,12 @@ main { max-width: 1600px; margin: 0 auto; padding: 12px 16px 40px; }
   margin: 14px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--accent-2);
 }
 .grupo-titulo:first-child { margin-top: 0; }
+.grupo-titulo .qtd { text-transform: none; letter-spacing: 0; color: var(--muted); }
+.painel-body .aviso {
+  margin-bottom: 12px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px;
+  background: rgba(201, 160, 99, .1); border: 1px solid rgba(201, 160, 99, .3); color: var(--accent-2);
+}
+.mais-variacoes { width: 100%; padding: 8px; }
 .xml {
   position: relative; margin: 0 0 8px; background: #120809; border: 1px solid var(--border);
   border-radius: 8px; padding: 10px 12px; overflow: auto;
@@ -283,4 +315,7 @@ main { max-width: 1600px; margin: 0 auto; padding: 12px 16px 40px; }
   .row .ph { width: 96px; }
   .row .acoes { display: none; }
   .lb-nav { display: none; }
+  .abas-in { gap: 6px; padding: 0 8px; }
+  .abas-marca { font-size: 0; gap: 0; } /* só o ícone, para caber as 3 abas */
+  .abas-lista button { padding: 0 10px; font-size: 13px; }
 }
